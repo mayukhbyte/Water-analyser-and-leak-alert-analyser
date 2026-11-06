@@ -1,0 +1,112 @@
+[
+  {
+    "building":"Library",
+    "leak_start":1785974400000,
+    "leak_end":1786406400000
+  },
+  {
+    "building":"Library",
+    "leak_start":1787184000000,
+    "leak_end":1787616000000
+  },
+  {
+    "building":"Hostel A",
+    "leak_start":1782259200000,
+    "leak_end":1783296000000
+  },
+  {
+    "building":"Hostel A",
+    "leak_start":1782259200000,
+    "leak_end":1783036800000
+  },
+  {
+    "building":"Hostel B",
+    "leak_start":1782777600000,
+    "leak_end":1783555200000
+  },
+  {
+    "building":"Hostel B",
+    "leak_start":1783123200000,
+    "leak_end":1784160000000
+  },
+  {
+    "building":"Admin Block",
+    "leak_start":1783987200000,
+    "leak_end":1784592000000
+  },
+  {
+    "building":"Admin Block",
+    "leak_start":1785801600000,
+    "leak_end":1786492800000
+  },
+  {
+    "building":"ECE Block",
+    "leak_start":1783382400000,
+    "leak_end":1784246400000
+  },
+  {
+    "building":"ECE Block",
+    "leak_start":1781136000000,
+    "leak_end":1782172800000
+  },
+  {
+    "building":"Canteen",
+    "leak_start":1781827200000,
+    "leak_end":1782864000000
+  },
+  {
+    "building":"Canteen",
+    "leak_start":1786060800000,
+    "leak_end":1786579200000
+  },
+  {
+    "building":"Hostel C",
+    "leak_start":1783728000000,
+    "leak_end":1784592000000
+  },
+  {
+    "building":"Hostel C",
+    "leak_start":1782950400000,
+    "leak_end":1783468800000
+  },
+  {
+    "building":"Sports Complex",
+    "leak_start":1784851200000,
+    "leak_end":1785628800000
+  },
+  {
+    "building":"Sports Complex",
+    "leak_start":1787270400000,
+    "leak_end":1787702400000
+  },
+  {
+    "building":"Lab Block",
+    "leak_start":1784332800000,
+    "leak_end":1785024000000
+  },
+  {
+    "building":"Lab Block",
+    "leak_start":1783728000000,
+    "leak_end":1784332800000
+  },
+  {
+    "building":"Staff Quarters",
+    "leak_start":1782691200000,
+    "leak_end":1783641600000
+  },
+  {
+    "building":"Staff Quarters",
+    "leak_start":1783036800000,
+    "leak_end":1783468800000
+  },
+  {
+    "building":"Auditorium",
+    "leak_start":1782259200000,
+    "leak_end":1782950400000
+  },
+  {
+    "building":"Auditorium",
+    "leak_start":1783814400000,
+    "leak_end":1784419200000
+  }
+]

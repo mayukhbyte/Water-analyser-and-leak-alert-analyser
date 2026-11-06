@@ -1,0 +1,12 @@
+building,readings,missing,non_monotonic,total_kL,mean_kL_day,peak_kL_day,leak_days_C,leak_days_D
+Library,120,7,1,1869.3,16.84,28.16,4,4
+Hostel A,120,10,0,7146.5,65.56,125.43,8,10
+Hostel B,120,9,0,6629.7,60.27,121.21,10,14
+Admin Block,120,4,0,1208.1,10.51,26.83,9,9
+ECE Block,120,9,1,2615.3,23.99,41.3,13,13
+Canteen,120,6,0,4602.4,40.73,68.54,15,14
+Hostel C,120,7,0,6742.0,60.2,90.64,7,11
+Sports Complex,120,9,0,3661.1,33.28,51.19,13,12
+Lab Block,120,4,0,2255.5,19.61,37.18,9,8
+Staff Quarters,120,7,0,4126.3,36.84,72.91,9,10
+Auditorium,120,4,2,884.5,7.83,22.25,11,8
