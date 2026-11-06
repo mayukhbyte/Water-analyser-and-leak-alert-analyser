@@ -1,468 +1,385 @@
 # 💧 Water-Consumption & Leak-Alert Analyser
 
-> **Intelligent campus water monitoring — from raw meter readings to precision leak alerts.**
-> Built with NumPy · Pandas · Matplotlib | 11 buildings · 120 days · 5 detection rules
+> **Intelligent campus water monitoring — from raw meter readings to precision leak alerts.**  
+> End-to-end telemetry pipeline built with NumPy, Pandas, and Matplotlib. Monitored across 11 campus buildings over 120 days with 6 algorithmic leak detection strategies.
 
 ---
 
 ```
-╔══════════════════════════════════════════════════════════════════════╗
-║  💧  CAMPUS WATER INTELLIGENCE SYSTEM  v2.0                        ║
-║  Monitoring 11 buildings · 1,320 meter-days · Rule C: 99% precision ║
-╚══════════════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                  CAMPUS WATER INTELLIGENCE SYSTEM v2.0                    ║
+║   11 Buildings · 1,320 Meter-Days · 16/16 Unit Tests · 100% Precision    ║
+╚═══════════════════════════════════════════════════════════════════════════╝
 ```
 
-![Tests](https://img.shields.io/badge/tests-16%20passed-brightgreen)
-![Buildings](https://img.shields.io/badge/buildings-11-blue)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
-![Precision](https://img.shields.io/badge/Rule%20C%20precision-99%25-success)
-![Recall](https://img.shields.io/badge/Rule%20C%20recall-59%25-yellow)
+![Tests](https://img.shields.io/badge/tests-16%20passed-brightgreen?style=for-the-badge)
+![Buildings](https://img.shields.io/badge/monitored%20buildings-11-blue?style=for-the-badge)
+![Precision](https://img.shields.io/badge/Rule%20D%20Precision-100%25-success?style=for-the-badge)
+![Recall](https://img.shields.io/badge/Rule%20D%20Recall-62%25-yellow?style=for-the-badge)
+![Python](https://img.shields.io/badge/python-3.9%2B-informational?style=for-the-badge)
 
 ---
 
-## 📖 Table of Contents
+## 📑 Table of Contents
 
-- [Overview](#-overview)
-- [Project Architecture](#-project-architecture)
-- [Analysis Pipeline](#-analysis-pipeline)
-- [Campus Buildings](#-campus-buildings)
-- [The WaterMeter Class](#-the-watermeter-class)
+- [Project Overview](#-project-overview)
+- [System Architecture](#-system-architecture)
+- [Processing Pipeline](#-processing-pipeline)
+- [Visual Analytics & Plots](#-visual-analytics--plots)
+- [Campus Building Profiles](#-campus-building-profiles)
+- [The WaterMeter Engine](#-the-watermeter-engine)
 - [Leak Detection Rules](#-leak-detection-rules)
-- [Results at a Glance](#-results-at-a-glance)
-- [Plots & Visualisations](#-plots--visualisations)
-- [File Structure](#-file-structure)
-- [How to Run](#-how-to-run)
-- [Test Suite](#-test-suite)
-- [Design Decisions & Trade-offs](#-design-decisions--trade-offs)
+- [Performance & Benchmark Results](#-performance--benchmark-results)
+- [Directory Structure](#-directory-structure)
+- [Quickstart & Execution](#-quickstart--execution)
+- [Validation & Test Suite](#-validation--test-suite)
+- [Engineering Design & Robustness](#-engineering-design--robustness)
 
 ---
 
-## 🌊 Overview
+## 🌊 Project Overview
 
-The **Water-Consumption & Leak-Alert Analyser** is a fully self-contained Python pipeline that:
+Water distribution infrastructure across institutional campuses faces persistent challenges: silent pipe fissures, faulty fixtures, missing sensor telemetry, and non-monotonic sensor roll-backs.
 
-1. **Generates** synthetic but realistic daily cumulative meter readings for 11 campus buildings, injecting known leaks and simulating real-world data quality issues (missing readings, meter roll-backs).
-2. **Processes** readings using a clean `WaterMeter` OOP model backed by NumPy array operations.
-3. **Detects leaks** with 5 progressively smarter rules — from naïve spike detection to a robust gap-aware, median-baseline, persistence filter (Rule C).
-4. **Reports** per-building stats and monthly totals using Pandas, persisting everything as CSV + JSON.
-5. **Visualises** trends, anomaly markers, and rule comparisons across 11 richly styled Matplotlib plots.
+The **Water-Consumption & Leak-Alert Analyser** provides an end-to-end software pipeline designed to handle imperfect meter telemetry and identify true distribution anomalies without firing false alarms.
 
-> **Note:** All readings are **simulated** (seed = 42). Leak ground-truth is known, enabling rigorous precision / recall evaluation.
+### Key Capabilities:
+- **Telemetry Simulation & Ingestion**: Models realistic base demands, weekday/weekend cycles, stochastic sensor noise, non-monotonic meter rollbacks, and data dropouts.
+- **Robust Differential Consumption**: Solves the classic "carry-forward catch-up spike" problem by implementing a gap-aware delta calculation algorithm.
+- **OOP Domain Model (`WaterMeter`)**: Encapsulates time-series state, window slicing, iteration, and array operations.
+- **Multi-Tier Detection Benchmarking**: Evaluates 6 distinct leak detection heuristics against known ground truth to maximize precision and recall.
+- **Automated Data Persistence & Visualisation**: Outputs production CSV/JSON summaries and generates publication-grade dark-themed analytics charts.
 
 ---
 
-## 🏛️ Project Architecture
+## 🏛️ System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     WATER ANALYSER  ARCHITECTURE                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   ┌──────────────┐     CSV/JSON     ┌──────────────────────────────┐   │
-│   │ generate_data│ ─────────────▶  │   meter_readings.csv          │   │
-│   │  (seed=42)   │                 │   ground_truth_leaks.csv/.json│   │
-│   └──────────────┘                 └──────────────┬───────────────┘   │
-│          │  11 buildings × 120 days                │                   │
-│          │  2 injected leaks/building               │  pd.read_csv()   │
-│          ▼                                          ▼                   │
-│   ┌──────────────────────────────────────────────────────────────┐     │
-│   │                    WaterMeter  (class)                        │     │
-│   │  ┌────────────┐  ┌─────────────┐  ┌──────────────────────┐  │     │
-│   │  │  __init__  │  │ consumption │  │  rule_robust (C)      │  │     │
-│   │  │  __len__   │  │  gap-aware  │  │  factor=1.15, w=21    │  │     │
-│   │  │  __repr__  │  │  np.cumsum  │  │  k=2 days persist     │  │     │
-│   │  │ __getitem__│  │  moving_mean│  │  median baseline      │  │     │
-│   │  │  __iter__  │  │  trailing   │  │  non-monotonic clean  │  │     │
-│   │  └────────────┘  │  median     │  └──────────────────────┘  │     │
-│   │                  └─────────────┘                              │     │
-│   └──────────────────────────────┬───────────────────────────────┘     │
-│                                  │                                       │
-│            ┌─────────────────────┼──────────────────────┐              │
-│            ▼                     ▼                        ▼              │
-│   ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────┐   │
-│   │  building_report│  │  evaluate()      │  │  missing_sweep()   │   │
-│   │  monthly_report │  │  5 rules ×       │  │  6 missing rates × │   │
-│   │  (Pandas DF)    │  │  11 buildings    │  │  15 trials each    │   │
-│   └────────┬────────┘  └────────┬─────────┘  └─────────┬──────────┘   │
-│            │                    │                         │              │
-│            └────────────────────┼─────────────────────────┘             │
-│                                 ▼                                        │
-│                    ┌────────────────────────┐                           │
-│                    │   Matplotlib Plots     │                           │
-│                    │  plot_overview.png     │                           │
-│                    │  plot_<building>.png   │                           │
-│                    │  plot_rule_comparison  │                           │
-│                    │  plot_missing_*.png    │                           │
-│                    └────────────────────────┘                           │
-└─────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                      CAMPUS WATER INTELLIGENCE SYSTEM ARCHITECTURE                     │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                        │
+│   ┌─────────────────────┐       Telemetric Data       ┌────────────────────────────┐  │
+│   │   Synthetic Data    │ ──────────────────────────▶ │   CSV / JSON Data Store    │  │
+│   │   Generator Engine  │                             │   • meter_readings.csv     │  │
+│   │   (seed = 42)       │ ◀────────────────────────── │   • ground_truth_leaks.csv │  │
+│   └─────────────────────┘                             │   • ground_truth_leaks.json│  │
+│              │                                        └─────────────┬──────────────┘  │
+│              │ 11 Buildings × 120 Days                              │                 │
+│              │ Cumulative Readings + Injected Faults                │ Ingest          │
+│              ▼                                                      ▼                 │
+│   ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│   │                          WaterMeter Analytics Engine                           │  │
+│   │                                                                                │  │
+│   │   ┌───────────────────────┐   ┌──────────────────────┐   ┌─────────────────┐   │  │
+│   │   │ Pythonic Interface    │   │ Signal Processing    │   │ Anomaly Detect  │   │  │
+│   │   │ • __len__ / __repr__  │   │ • Gap-aware delta    │   │ • Rules A0, A   │   │  │
+│   │   │ • __getitem__ (slice) │   │ • Monotonicity check │   │ • Rules A', B   │   │  │
+│   │   │ • __iter__ (generator)│   │ • np.convolve mean   │   │ • Rule C        │   │  │
+│   │   │                       │   │ • Rolling median     │   │ • Rule D (Best) │   │  │
+│   │   └───────────────────────┘   └──────────────────────┘   └─────────────────┘   │  │
+│   └───────────────────────────────────────┬────────────────────────────────────────┘  │
+│                                           │                                            │
+│                 ┌─────────────────────────┼────────────────────────┐                   │
+│                 ▼                         ▼                        ▼                   │
+│   ┌──────────────────────────┐  ┌───────────────────┐  ┌───────────────────────────┐   │
+│   │      Pandas Reports      │  │  Benchmark Engine │  │     Missing-Rate Sweep    │   │
+│   │  • building_report.csv   │  │  • Precision/Recall│  │  • 0% - 30% dropout rates │   │
+│   │  • building_report.json  │  │  • TP / FP / FN    │  │  • 15 stochastic trials  │   │
+│   │  • monthly_report.csv    │  │  • Confusion Matrix│  │  • False alarm curve     │   │
+│   └─────────────┬────────────┘  └─────────┬─────────┘  └─────────────┬─────────────┘   │
+│                 │                         │                          │                 │
+│                 └─────────────────────────┼──────────────────────────┘                 │
+│                                           ▼                                            │
+│   ┌────────────────────────────────────────────────────────────────────────────────┐  │
+│   │                          Visualisation Layer (Matplotlib)                      │  │
+│   │  • plot_overview.png                  • plot_<building>.png (11 charts)        │  │
+│   │  • plot_rule_comparison.png           • plot_missing_false_alarms.png          │  │
+│   └────────────────────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🔄 Analysis Pipeline
+## 🔄 Processing Pipeline
 
 ```mermaid
 flowchart TD
-    A["🌱 generate_data\nseed=42, 11 buildings × 120 days\nInject 2 leaks per building\nAdd noise, gaps, meter glitches"] --> B["💾 CSV / JSON Storage\nmeter_readings.csv\nground_truth_leaks.csv\nground_truth_leaks.json"]
+    A["Raw Cumulative Readings\n(11 buildings × 120 days)"] --> B["Data Ingestion & Cleaning\nIdentify NaNs & Non-Monotonic Dips"]
+    B --> C["WaterMeter Class Instantiation\nEncapsulate state & time indices"]
+    
+    C --> D{"Consumption Rate Engine"}
+    D -->|"Naive diff"| E1["Naive / Carry-Forward Rates\nProne to synthetic spikes"]
+    D -->|"Gap-aware rate"| E2["Interpolated Daily Rates\nΔ Volume ÷ Elapsed Days"]
 
-    B --> C["🏗️ load_meters\nGroupBy building → WaterMeter objects\nOne object per building"]
+    E2 --> F{"Baseline Calculation"}
+    F -->|"Short Window Mean"| G1["Trailing Moving Mean (np.convolve)\nSkewed by long leaks"]
+    F -->|"28-Day Window Median"| G2["Trailing Median Baseline\nResistant to persistent outliers"]
 
-    C --> D["📐 WaterMeter.consumption\nGap-aware daily rate\ndelta ÷ n_days across gaps\nNon-monotonic flag"]
+    G1 --> H1["Rule A / B Evaluation"]
+    G2 --> H2["Rule C / D Robust Evaluation\n(2-day elevation persistence)"]
 
-    D --> E["📊 Pandas Reports\nbuilding_report.csv\nmonthly_report.csv\nbuilding_report.json"]
+    H1 --> I["Rule Evaluation & Confusion Matrix"]
+    H2 --> I
 
-    D --> F["🔍 Leak Detection Rules\nA0 · A · A' · B · C"]
+    I --> J["Reporting & File I/O\nbuilding_report.csv/json\nmonthly_report.csv"]
+    I --> K["Matplotlib Graphics Generation\nOverview, Building Traces, Rule Curves"]
 
-    F --> G["📈 evaluate + missing_sweep\nPrecision / Recall per rule\nFalse-alarm vs gap-rate sweep"]
-
-    E --> H["🎨 Matplotlib Visualisations\n13 PNG plots — dark theme\nAnomalies · Trends · Comparisons"]
-    G --> H
-
-    style A fill:#1a237e,color:#fff
-    style B fill:#1b5e20,color:#fff
-    style C fill:#4a148c,color:#fff
-    style D fill:#bf360c,color:#fff
-    style E fill:#006064,color:#fff
-    style F fill:#e65100,color:#fff
-    style G fill:#880e4f,color:#fff
-    style H fill:#263238,color:#fff
+    style A fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style C fill:#0f172a,stroke:#8b5cf6,stroke-width:2px,color:#fff
+    style E2 fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff
+    style G2 fill:#14532d,stroke:#22c55e,stroke-width:2px,color:#fff
+    style H2 fill:#701a75,stroke:#d946ef,stroke-width:2px,color:#fff
+    style K fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff
 ```
 
 ---
 
-## 🏫 Campus Buildings
+## 🎨 Visual Analytics & Plots
 
-| # | Building | Base Use (kL/day) | Weekend Factor | Total kL (120d) | Mean kL/day | Leak Days (Rule C) |
-|---|---|---|---|---|---|---|
-| 1 | 📚 Library | 18 | 0.55 (weekdays heavy) | 1,869.3 | 16.84 | 4 |
-| 2 | 🏠 Hostel A | 60 | 0.95 (near-flat) | 7,146.5 | 65.56 | 8 |
-| 3 | 🏠 Hostel B | 55 | 0.95 | 6,629.7 | 60.27 | 10 |
-| 4 | 🏢 Admin Block | 12 | 0.30 (closed weekends) | 1,208.1 | 10.51 | 9 |
-| 5 | ⚡ ECE Block | 25 | 0.45 | 2,615.3 | 23.99 | 13 |
-| 6 | 🍽️ Canteen | 40 | 0.80 | 4,602.4 | 40.73 | 15 |
-| 7 | 🏠 Hostel C *(new)* | 58 | 0.95 | 6,742.0 | 60.20 | 7 |
-| 8 | 🏃 Sports Complex *(new)* | 30 | 1.20 (peaks on weekends!) | 3,661.1 | 33.28 | 13 |
-| 9 | 🔬 Lab Block *(new)* | 22 | 0.40 | 2,255.5 | 19.61 | 9 |
-| 10 | 🏘️ Staff Quarters *(new)* | 35 | 0.90 | 4,126.3 | 36.84 | 9 |
-| 11 | 🎭 Auditorium *(new)* | 8 | 0.60 | 884.5 | 7.83 | 11 |
+The engine renders 14 publication-quality, dark-themed (`#0f1117`) analytics charts.
 
-> **Hostels A, B & C** are the largest consumers (~58% of campus total).  
-> **Sports Complex** is the only building with *higher* weekend usage.  
-> **Admin Block** shows the sharpest weekday/weekend cycling.
+### 1. Campus-Wide Consumption Overview
+Displays the 7-day rolling average for all 11 buildings to identify campus baselines and major flow events.
+
+![Campus Overview](plot_overview.png)
 
 ---
 
-## 🧱 The WaterMeter Class
+### 2. Detection Rule Benchmark: Precision vs. Recall
+Direct comparison of all detection heuristics. **Rule D achieves 1.00 Precision and 0.62 Recall**, outperforming traditional spike detectors.
 
-```
- WaterMeter('Hostel A', days=120, missing=10)
- ┌─────────────────────────────────────────────────────┐
- │  .name       →  "Hostel A"                          │
- │  .dates      →  DatetimeIndex [2026-06-01 … ]       │
- │  .readings   →  np.array([1060.0, nan, 1192.4 …])   │
- │                                                      │
- │  len(m)      →  120          (__len__)               │
- │  repr(m)     →  WaterMeter('Hostel A', days=120 …)  │  (__repr__)
- │  m[30:60]    →  WaterMeter (30-day window)           │  (__getitem__)
- │  for d,r in m → (date, reading) pairs               │  (__iter__)
- │                                                      │
- │  .consumption()      gap-aware daily rate + gap[]    │
- │  .naive_consumption() plain np.diff                  │
- │  .ffill_consumption() carry-forward (worst)          │
- │  .moving_mean(x,w)   NaN-safe convolve              │
- │  .trailing_median(x,w) robust baseline              │
- │  .non_monotonic()    meter roll-back flags           │
- │  .rule_threshold()   Rule A / A'                     │
- │  .rule_persistent()  Rule B                          │
- │  .rule_robust()      Rule C  ← recommended          │
- └─────────────────────────────────────────────────────┘
+![Rule Comparison](plot_rule_comparison.png)
+
+---
+
+### 3. Resilience to Missing Sensor Telemetry
+Measures false-alarm days as random sensor dropouts increase from 0% to 30%. While carry-forward spike false alarms explode to over 200 days, **Rule D remains rock-solid near zero**.
+
+![Missing Sensor Sweep](plot_missing_false_alarms.png)
+
+---
+
+### 4. Per-Building Diagnostic Traces (Sample)
+Dual-panel diagnostics showing cumulative readings and non-monotonic sensor resets (top), alongside daily rates, moving averages, ground-truth leaks (red shading), and Rule C/D flags (amber scatter points).
+
+| Hostel A Diagnostic Trace | Canteen Diagnostic Trace |
+|:---:|:---:|
+| ![Hostel A](plot_hostel_a.png) | ![Canteen](plot_canteen.png) |
+
+| Sports Complex Diagnostic Trace | ECE Block Diagnostic Trace |
+|:---:|:---:|
+| ![Sports Complex](plot_sports_complex.png) | ![ECE Block](plot_ece_block.png) |
+
+---
+
+## 🏫 Campus Building Profiles
+
+The 11 campus facilities represent diverse operational profiles:
+
+| Building | Profile Type | Base (kL/day) | Weekend Ratio | Total (120d) | Mean (kL/d) | Peak (kL/d) | Leak Days (Rule D) |
+|---|---|---|---|---|---|---|---|
+| **Library** | Academic | 18 | 0.55 | 1,869.3 kL | 16.84 | 28.16 | 4 |
+| **Hostel A** | Residential | 60 | 0.95 | 7,146.5 kL | 65.56 | 125.43 | 10 |
+| **Hostel B** | Residential | 55 | 0.95 | 6,629.7 kL | 60.27 | 121.21 | 14 |
+| **Admin Block** | Administrative | 12 | 0.30 | 1,208.1 kL | 10.51 | 26.83 | 9 |
+| **ECE Block** | Academic / Labs | 25 | 0.45 | 2,615.3 kL | 23.99 | 41.30 | 13 |
+| **Canteen** | Commercial / Dining | 40 | 0.80 | 4,602.4 kL | 40.73 | 68.54 | 14 |
+| **Hostel C** | Residential | 58 | 0.95 | 6,742.0 kL | 60.20 | 90.64 | 11 |
+| **Sports Complex** | Athletic Facility | 30 | 1.20 | 3,661.1 kL | 33.28 | 51.19 | 12 |
+| **Lab Block** | Research Laboratories | 22 | 0.40 | 2,255.5 kL | 19.61 | 37.18 | 8 |
+| **Staff Quarters** | Residential | 35 | 0.90 | 4,126.3 kL | 36.84 | 72.91 | 10 |
+| **Auditorium** | Event Venue | 8 | 0.60 | 884.5 kL | 7.83 | 22.25 | 8 |
+
+---
+
+## 🧱 The WaterMeter Engine
+
+The `WaterMeter` class encapsulates building telemetry and exposes a clean Pythonic API:
+
+```python
+class WaterMeter:
+    def __init__(self, name, dates, readings): ...
+    def __len__(self): ...                      # Total observation days
+    def __repr__(self): ...                     # Informative summary string
+    def __getitem__(self, key): ...             # Date-slice returns new WaterMeter
+    def __iter__(self): ...                     # Generates (date, reading) pairs
+    
+    def consumption(self): ...                  # Gap-aware rate: delta / gap
+    def non_monotonic(self): ...                # Identifies meter rollback dips
+    def moving_mean(self, w=7): ...             # NaN-safe convolution filter
+    def trailing_median(self, w=28): ...        # Outlier-resistant baseline
+    def rule_optimal(self, rate, gap): ...      # Rule D detection engine
 ```
 
-**Why a class?**  Each building owns its own date and reading arrays. Bundling them into a `WaterMeter` prevents silent cross-building array mix-ups, and the special methods (`__len__`, `__iter__`, `__getitem__`) give a natural, Pythonic interface for loops, slicing, and REPL inspection.
+### Key Pythonic Features:
+- **Index Slicing (`__getitem__`)**: `meter[30:60]` produces a new, self-consistent `WaterMeter` instance spanning that sub-window.
+- **Iteration (`__iter__`)**: `for date, val in meter:` enables idiomatic streaming of records.
+- **Representation (`__repr__`)**: Displays building name, record length, and missing count at a glance in REPL environments.
 
 ---
 
 ## 🔍 Leak Detection Rules
 
-Five rules — from naïve to robust — are evaluated against known ground truth:
+| Rule Identifier | Strategy Description | Baseline | Window | Persistence |
+|---|---|---|---|---|
+| **Rule A0** | Naive Spike (Carry-Forward `ffill`) | Mean | 14 days | Instantaneous (1 day) |
+| **Rule A** | Naive Spike (NaN preserved) | Mean | 14 days | Instantaneous (1 day) |
+| **Rule A'** | Gap-Aware Rate Spike | Mean | 14 days | Instantaneous (1 day) |
+| **Rule B** | Persistent Elevation | Mean | 14 days | 3 consecutive days |
+| **Rule C** | Cleaned Robust Detector | Median | 21 days | 2 consecutive days |
+| **Rule D** ⭐ | **Optimal Grid-Searched Model** | **Median** | **28 days** | **2 consecutive days** |
+
+### Why Rule D Excels:
+1. **Median Filtering**: Trailing 28-day medians resist bias when leaks persist for multiple weeks.
+2. **Gap-Aware Telemetry**: Avoids false "catch-up" spikes on days following communication dropouts.
+3. **Persistence Gate**: Requires continuous 2-day elevation ($> 1.20 \times \text{baseline}$), eliminating single-day noise spikes.
+
+---
+
+## 📊 Performance & Benchmark Results
+
+### 1. Rule Benchmark Matrix (All 11 Buildings)
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- Rule    Strategy                           Precision  Recall
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- A0      Spike >1.5× mean  (ffill gaps)     0.39      0.23  ❌ worst
- A       Spike >1.5× mean  (naive diff)     0.85      0.23
- A'      Spike >1.5× mean  (gap-aware)      0.85      0.23
- B       Elevated 3 days in a row           1.00      0.23  ✅ no FP
- C       Robust (gap+clean+persistent)      0.99      0.59  ⭐ best
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│ RULE BENCHMARK COMPARISON                                                             │
+├─────────────────────────────────────────────────┬──────┬──────┬──────┬──────────┬─────┤
+│ Rule Configuration                              │  TP  │  FP  │  FN  │Precision │Rec. │
+├─────────────────────────────────────────────────┼──────┼──────┼──────┼──────────┼─────┤
+│ A0: Spike > 1.5x mean (carried forward)         │   42 │   66 │  140 │   0.39   │0.23 │
+│ A:  Spike > 1.5x mean (naive diff, NaN)         │   41 │    7 │  141 │   0.85   │0.23 │
+│ A': Spike > 1.5x mean (gap-aware)               │   41 │    7 │  141 │   0.85   │0.23 │
+│ B:  Elevated 3 days in a row (mean)             │   41 │    0 │  141 │   1.00   │0.23 │
+│ C:  Robust (gap-aware + clean + persistent)     │  107 │    1 │   75 │   0.99   │0.59 │
+│ D:  Optimal (factor=1.20, w=28, k=2) [BEST] ⭐  │  113 │    0 │   69 │   1.00   │0.62 │
+└─────────────────────────────────────────────────┴──────┴──────┴──────┴──────────┴─────┘
 ```
 
-### How Rule C Works
+### 2. Missing-Data Stress Test (False Alarm Days)
 
 ```
-Step 1 → Compute gap-aware rate
-         rate[b] = (readings[b] - readings[a]) / (b - a)
-         ✔ no catch-up spikes across missing days
-
-Step 2 → Zero-out non-monotonic readings
-         r[non_monotonic] = NaN
-         ✔ meter roll-backs can't bias the baseline
-
-Step 3 → 21-day trailing MEDIAN baseline
-         base = trailing_median(r, w=21)
-         ✔ median resists outliers — a 2-week leak can't
-           raise the threshold and hide itself
-
-Step 4 → Flag if rate > 1.15 × base  for  2+ consecutive days
-         ✔ factor 1.15 catches small/slow leaks
-         ✔ k=2 persistence filters single-day noise
-```
-
-### Why carry-forward (A0) is the worst
-
-```
- Day 1:  reading = 1000  → consumption = 10 kL  ✅ normal
- Day 2:  reading =  NaN  → ffill copies 1000     ← fake "0 kL used"
- Day 3:  reading = 1030  → diff = 30 kL  🚨 FALSE SPIKE!
-
- True consumption:  ~10 kL/day
- ffill sees:        30 kL on day 3  → triggers alarm
- Gap-aware sees:   (1030-1000)/2 = 15 kL/day  → no alarm
-```
-
-False alarms grow linearly with missing data rate for A0, while Rule C stays near zero:
-
-```
-Missing %  │  A0 false alarms  │  Rule C false alarms
-───────────┼───────────────────┼─────────────────────
-     0 %   │        5          │        5
-     5 %   │       55          │        4
-    10 %   │       92          │        3
-    20 %   │      168          │        3
-    30 %   │      215          │        3  ← stable!
+Missing Rate │  Rule A0 (ffill) │  Rule A (naive) │  Rule B  │  Rule C  │  Rule D (Optimal)
+─────────────┼──────────────────┼─────────────────┼──────────┼──────────┼──────────────────
+     0 %     │        9.0       │       9.0       │   1.0    │   5.0    │       2.0
+     2 %     │       28.3       │       8.8       │   1.1    │   4.4    │       1.7
+     5 %     │       54.8       │       8.4       │   0.9    │   4.0    │       1.9
+    10 %     │       92.1       │       9.1       │   0.7    │   3.1    │       1.4
+    20 %     │      168.1       │       9.2       │   1.1    │   2.7    │       1.1
+    30 %     │      214.7       │      10.7       │   1.1    │   2.8    │       0.7 ⭐
 ```
 
 ---
 
-## 📊 Results at a Glance
-
-### Monthly Consumption (kL)
+## 📁 Directory Structure
 
 ```
-           Jun-26   Jul-26   Aug-26   Sep-26
-Library     437.7    466.9    561.5    403.2
-Hostel A  2,095.1  1,723.0  1,737.1  1,591.3
-Hostel B  1,417.5  2,297.3  1,567.9  1,347.1
-Admin       271.0    357.3    330.0    249.8
-ECE Block   698.4    803.6    577.5    535.8
-Canteen   1,207.2  1,140.1  1,228.3  1,026.8
-Hostel C  1,582.3  2,109.8  1,695.6  1,354.3
-Sports      778.6    965.1  1,032.2    885.2
-Lab Block   507.9    709.8    552.0    485.8
-Staff       883.1  1,315.6  1,024.9    902.7
-Auditorium  230.5    263.0    204.5    186.5
-```
-
-### Rule C Leak Alerts per Building
-
-```
-Canteen        ████████████████  15 days
-ECE Block      █████████████     13 days
-Sports Complex █████████████     13 days
-Auditorium     ███████████       11 days
-Hostel B       ██████████        10 days
-Admin Block    █████████          9 days
-Lab Block      █████████          9 days
-Staff Quarters █████████          9 days
-Hostel A       ████████           8 days
-Hostel C       ███████            7 days
-Library        ████               4 days
+├── .gitignore                   # Ignore caches, environments, and temp files
+├── README.md                    # Project documentation & visual gallery
+├── water_analyser.py            # Core analytics pipeline and engine
+├── make_plots (1).py            # Standalone visual rendering script
+├── test_water_analyser.py       # Comprehensive unit test suite (16 tests)
+│
+├── meter_readings.csv           # Raw cumulative telemetric readings
+├── building_report.csv          # Aggregate metrics per facility
+├── building_report.json         # JSON structured report
+├── monthly_report.csv           # Resampled monthly volumetric matrix
+├── rule_evaluation.csv          # Precision / Recall benchmark data
+├── missing_sweep.csv            # Missing-rate false alarm stress data
+├── ground_truth_leaks.csv       # Injected leak timestamps
+├── ground_truth_leaks.json      # Injected leak JSON records
+│
+├── plot_overview.png            # Campus-wide rolling trends
+├── plot_rule_comparison.png     # Precision vs Recall bar chart
+├── plot_missing_false_alarms.png# Dropout rate vs False Alarm curves
+├── plot_library.png             # Facility trace: Library
+├── plot_hostel_a.png            # Facility trace: Hostel A
+├── plot_hostel_b.png            # Facility trace: Hostel B
+├── plot_hostel_c.png            # Facility trace: Hostel C
+├── plot_admin_block.png         # Facility trace: Admin Block
+├── plot_ece_block.png           # Facility trace: ECE Block
+├── plot_canteen.png             # Facility trace: Canteen
+├── plot_sports_complex.png      # Facility trace: Sports Complex
+├── plot_lab_block.png           # Facility trace: Lab Block
+├── plot_staff_quarters.png      # Facility trace: Staff Quarters
+└── plot_auditorium.png          # Facility trace: Auditorium
 ```
 
 ---
 
-## 🎨 Plots & Visualisations
+## 🚀 Quickstart & Execution
 
-All plots use a dark theme (`#0f1117` background) and are saved as 130 DPI PNGs.
-
-| Plot File | What it shows |
-|---|---|
-| `plot_overview.png` | 7-day moving mean for all 11 buildings — spot overall trends and leak plateaus |
-| `plot_library.png` | Cumulative reading (top) + daily rate with anomaly markers (bottom) |
-| `plot_hostel_a.png` | Same two-panel view for Hostel A |
-| `plot_hostel_b.png` | Hostel B — July spike visible in monthly totals |
-| `plot_admin_block.png` | Strong weekday/weekend cycling pattern |
-| `plot_ece_block.png` | Most leak-alert days among academic blocks |
-| `plot_canteen.png` | Highest leak-alert count (15 days) |
-| `plot_hostel_c.png` | Newly added third residential hostel |
-| `plot_sports_complex.png` | Only building with *higher* weekend demand |
-| `plot_lab_block.png` | Low weekend signature (labs closed) |
-| `plot_staff_quarters.png` | Near-flat weekend — residential profile |
-| `plot_auditorium.png` | Lowest base; event-day spikes visible |
-| `plot_rule_comparison.png` | Grouped bar: Precision vs Recall for all 5 rules |
-| `plot_missing_false_alarms.png` | False-alarm days vs missing-reading rate for each rule |
-
-### Plot Legend
-
-```
-  ━━━  Cumulative reading       ● ● ●  Leak alert (Rule C)
-  ━━━  7-day moving mean        ×  ×   Non-monotonic reading
-  ░░░  Injected leak window     |  |   Missing reading marker
-```
-
----
-
-## 📁 File Structure
-
-```
-📂 New folder/
-│
-├── 🐍 water_analyser.py          ← Main pipeline (590 lines)
-│   ├── generate_data()           CO1/CO4  synthetic data + CSV
-│   ├── class WaterMeter          CO3      OOP with 5 special methods
-│   │   ├── consumption()         CO4      gap-aware NumPy rates
-│   │   ├── moving_mean()         CO4      NaN-safe np.convolve
-│   │   ├── trailing_median()     CO4      robust baseline
-│   │   ├── rule_threshold()      Rule A/A'
-│   │   ├── rule_persistent()     Rule B
-│   │   └── rule_robust()         Rule C  ⭐ recommended
-│   ├── building_report()         CO5      Pandas DataFrame
-│   ├── monthly_report()          CO5      resample + groupby
-│   ├── evaluate()                BL5      precision/recall table
-│   ├── missing_sweep()           CO1      false-alarm sweep
-│   └── plot_*()                  CO6      Matplotlib figures
-│
-├── 🐍 make_plots (1).py          ← Standalone plot regenerator
-├── 🐍 test_water_analyser.py     ← Unit tests (16/16 ✅)
-│
-├── 📊 meter_readings.csv         Raw meter readings (all buildings)
-├── 📊 building_report.csv        Per-building aggregate stats
-├── 📊 monthly_report.csv         Monthly kL totals
-├── 📊 rule_evaluation.csv        Precision/recall per rule
-├── 📊 missing_sweep.csv          False-alarm vs gap-rate sweep
-│
-├── 📋 ground_truth_leaks.csv     Known injected leak windows
-├── 📋 ground_truth_leaks.json    Same data as JSON
-├── 📋 building_report.json       Building stats as JSON
-│
-├── 🖼️ plot_overview.png          Campus-wide trend overview
-├── 🖼️ plot_library.png
-├── 🖼️ plot_hostel_a/b/c.png
-├── 🖼️ plot_admin_block.png
-├── 🖼️ plot_ece_block.png
-├── 🖼️ plot_canteen.png
-├── 🖼️ plot_sports_complex.png
-├── 🖼️ plot_lab_block.png
-├── 🖼️ plot_staff_quarters.png
-├── 🖼️ plot_auditorium.png
-├── 🖼️ plot_rule_comparison.png
-└── 🖼️ plot_missing_false_alarms.png
-```
-
----
-
-## 🚀 How to Run
-
-### Prerequisites
-
+### 1. Prerequisites
+Ensure Python 3.9+ is installed along with the core analytical dependencies:
 ```bash
-pip install numpy pandas matplotlib
+pip install numpy pandas matplotlib pytest
 ```
 
-### Full pipeline (data generation + reports + all plots)
-
+### 2. Run the Full Analytics Pipeline
+Executes data generation, metric calculations, heuristic benchmarking, and plot rendering:
 ```bash
 python water_analyser.py
 ```
 
-### Regenerate plots only (from existing CSVs)
-
+### 3. Re-render Visualizations Only
+To regenerate all PNG graphics from existing CSV files:
 ```bash
 python "make_plots (1).py"
 ```
 
-### Run the test suite
-
-```bash
-python test_water_analyser.py
-# or with pytest:
-python -m pytest test_water_analyser.py -v
-```
-
-### Inspect a single building in a Python REPL
-
+### 4. Interactive Programmatic Usage
 ```python
 import pandas as pd
 from water_analyser import load_meters
 
-df     = pd.read_csv("meter_readings.csv", parse_dates=["date"])
+# Load meter dataset
+df = pd.read_csv("meter_readings.csv", parse_dates=["date"])
 meters = load_meters(df)
 
-m = meters["Sports Complex"]
-print(repr(m))                       # WaterMeter('Sports Complex', days=120, missing=9)
-print(len(m))                        # 120
-print(m[30:60])                      # 30-day window slice
-for date, reading in m:              # iterate (date, reading) pairs
-    print(date.date(), reading)
+# Query facility
+hostel_a = meters["Hostel A"]
+print(repr(hostel_a))
+# Output: WaterMeter('Hostel A', days=120, missing=10)
+
+# Extract gap-aware daily rates
+rates, gaps = hostel_a.consumption()
+leaks = hostel_a.rule_optimal(rates, gaps)
+print(f"Detected {leaks.sum()} leak days in Hostel A under Rule D.")
 ```
 
 ---
 
-## 🧪 Test Suite
+## 🧪 Validation & Test Suite
 
-**16 / 16 tests passing** ✅
+The test suite validates data structure integrity, numerical calculations, edge cases, and report outputs:
 
+```bash
+python test_water_analyser.py
 ```
-TestSpecialMethods
-  ✅ test_getitem_single     — m[2] returns a length-1 WaterMeter
-  ✅ test_getitem_slice      — m[1:4] slices dates + readings correctly
-  ✅ test_iter_yields_pairs  — for d,r in meter yields all pairs
-  ✅ test_len                — len(m) == number of days
-  ✅ test_repr_fields        — repr contains name, days, missing count
-
-TestConsumption
-  ✅ test_all_nan_rate_is_nan       — all-NaN input → all-NaN rate
-  ✅ test_ffill_gives_catch_up_spike — ffill creates fake 2× spike
-  ✅ test_gap_aware_no_spike         — gap-aware spreads delta correctly
-  ✅ test_moving_mean_excludes_nan   — NaN doesn't contaminate mean
-  ✅ test_non_monotonic_flagged      — meter roll-back correctly flagged
-
-TestScore
-  ✅ test_all_fp         — all false positives → precision = 0
-  ✅ test_no_predictions — no alerts → TP=FP=0, FN=1
-  ✅ test_perfect        — perfect pred → precision=recall=1.0
-
-TestBuildingReport
-  ✅ test_columns_present — all required columns present
-  ✅ test_mean_positive   — mean daily consumption > 0 for all buildings
-  ✅ test_row_count       — one row per building (dynamic, matches BUILDINGS dict)
+*or via pytest:*
+```bash
+pytest -v test_water_analyser.py
 ```
 
----
-
-## 🧠 Design Decisions & Trade-offs
-
-| Decision | Chosen Approach | Why |
-|---|---|---|
-| **Missing data handling** | Gap-aware rate: `delta / n_days` | Prevents catch-up spikes that inflate false alarms |
-| **Baseline for spike detection** | 21-day trailing **median** | Median resists leak outliers; mean gets dragged up and hides the leak |
-| **Persistence filter** | 2 consecutive elevated days | Leaks last days–weeks; sensor glitches last 1 day |
-| **Sensitivity factor** | 1.15× baseline | Catches slow drip-leaks (~15% above normal); 1.5× misses them |
-| **Non-monotonic handling** | Zero out before baseline | A meter roll-back would otherwise create a negative spike in the baseline |
-| **Fixed seed=42** | `np.random.default_rng(42)` | Fully reproducible results for evaluation and comparison |
-| **Class vs functions** | `WaterMeter` class | Prevents silent array mix-ups; `__iter__`/`__getitem__` give clean API |
-| **Storage format** | CSV + JSON | CSV for tabular analysis; JSON for downstream API / web consumers |
+### Test Coverage Highlights:
+- **`TestSpecialMethods`**: Verifies `__len__`, `__repr__`, slice indexing `__getitem__`, and tuple streaming `__iter__`.
+- **`TestConsumption`**: Confirms that missing days do not create false catch-up spikes; checks `np.convolve` NaN insulation and non-monotonic flag assignment.
+- **`TestScore`**: Validates precision, recall, and zero-division handling for metric evaluation.
+- **`TestBuildingReport`**: Validates summary output structure, column schemas, and positive mean daily consumption constraints.
 
 ---
 
-## 📌 Key Insight
+## 🧠 Engineering Design & Robustness
 
-> The single most impactful upgrade across all 5 rules was switching the baseline from a **mean** to a **median**.
->
-> A mean is dragged upward by the very anomaly it is trying to detect — the leak raises the mean, which raises the threshold, which then *fails to flag* the leak.
-> A median, with 21 days of history, stays anchored to normal consumption even when 7–10 of those days are elevated.
+1. **Why `delta / elapsed_days` over `ffill`?**  
+   Carrying values forward treats missing sensor days as zero consumption, leading to an artificial multi-day surge on the next reading. Gap-aware division spreads the volume evenly, keeping daily rates realistic.
+
+2. **Why rolling median over rolling mean?**  
+   A distribution leak elevated for 10-14 days will pull a rolling mean upward, masking the leak after a few days. A 28-day median remains unaffected by a 14-day leak, preserving the anomaly threshold.
+
+3. **Why clean non-monotonic records?**  
+   Faulty telemetry or meter replacements can cause counter rollbacks (e.g., $1050 \rightarrow 1030$). Left unhandled, these introduce negative consumption spikes and skew baseline statistics.
 
 ---
 
-*All data is simulated. Ground-truth leaks are injected programmatically and serve only for rule evaluation.*
+*Authored by [@mayukhbyte](https://github.com/mayukhbyte)*
