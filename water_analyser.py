@@ -594,58 +594,160 @@ def plot_missing(sweep, path):
     plt.close(fig)
 
 
+# ---------------------------------------------------------------------------
+# helpers for pretty console output
+# ---------------------------------------------------------------------------
+W  = 80          # total banner width
+DIV  = "=" * W
+DIV2 = "-" * W
+
+def _banner(title):
+    pad = (W - len(title) - 2) // 2
+    print(f"\n{DIV}")
+    print(f"{'':>{pad}} {title} {'':>{W - pad - len(title) - 2}}")
+    print(DIV)
+
+def _section(title):
+    print(f"\n{DIV2}")
+    print(f"  {title}")
+    print(DIV2)
+
+
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
+    import datetime
+
     data     = generate_data()
     df       = pd.read_csv(CSV_PATH, parse_dates=["date"])
     truth_df = pd.read_csv(TRUTH_PATH)
     meters   = load_meters(df)
 
-    # CO3 special-method demonstration ----------------------------------------
-    print("\n-- WaterMeter objects (CO3 __repr__ + __len__) --")
-    for m in meters.values():
-        print(f"  {m!r}   len={len(m)}")
+    # ── header ────────────────────────────────────────────────────────────────
+    print("\n" + DIV)
+    print("  CAMPUS WATER-CONSUMPTION & LEAK-ALERT ANALYSER".center(W))
+    print("  Automated Telemetry Processing & Anomaly Detection Pipeline".center(W))
+    print(f"  Run timestamp : {datetime.datetime.now().strftime('%Y-%m-%d  %H:%M:%S')}".center(W))
+    print(f"  Buildings     : {len(meters)}   |   Observation days : {DAYS}   |   Seed : 42".center(W))
+    print(DIV)
 
-    print("\n-- First 3 (date, reading) pairs for Library (CO3 __iter__) --")
+    # ── 1. WaterMeter objects ─────────────────────────────────────────────────
+    _banner("1. WATERMETER OBJECTS  (OOP / Class Demonstration)")
+    print(f"\n  {'Building':<20} {'repr()':<46} {'len()':>5}")
+    print(f"  {'-'*20}  {'-'*44}  {'-'*5}")
+    for m in meters.values():
+        print(f"  {m.name:<20}  {m!r:<44}  {len(m):>5}")
+
+    _section("WaterMeter.__iter__  —  First 3 readings  (Library)")
+    print(f"\n  {'Date':<14} {'Cumulative Reading (kL)':>22}")
+    print(f"  {'-'*14}  {'-'*22}")
     for i, (d, r) in enumerate(meters["Library"]):
-        print(f"  {d.date()}  {r}")
+        print(f"  {str(d.date()):<14}  {r:>22.2f}")
         if i == 2:
             break
 
-    print("\n-- Sliced WaterMeter days 0-9 (CO3 __getitem__) --")
-    print(f"  {meters['Library'][0:10]!r}")
-    # -------------------------------------------------------------------------
+    _section("WaterMeter.__getitem__  —  Slice  [day 0 : day 9]  (Library)")
+    sliced = meters["Library"][0:10]
+    print(f"\n  Result : {sliced!r}")
+    print(f"  Days sliced : {len(sliced)}  |  Missing in window : "
+          f"{int(np.isnan(sliced.readings).sum())}")
 
+    # ── pipeline ──────────────────────────────────────────────────────────────
+    _banner("2. RUNNING ANALYTICS PIPELINE")
     rep = building_report(meters)
     mon = monthly_report(meters)
     ev  = evaluate(meters, truth_df)
     sw  = missing_sweep(df, truth_df)
 
-    # CO2 + CO5: persist all outputs
+    # persist
     rep.to_csv(os.path.join(OUT, "building_report.csv"), index=False)
     mon.to_csv(os.path.join(OUT, "monthly_report.csv"))
     ev.to_csv(os.path.join(OUT, "rule_evaluation.csv"), index=False)
     sw.to_csv(os.path.join(OUT, "missing_sweep.csv"), index=False)
-    rep.to_json(os.path.join(OUT, "building_report.json"),
-                orient="records", indent=2)                 # CO5 JSON
+    rep.to_json(os.path.join(OUT, "building_report.json"), orient="records", indent=2)
+    print("\n  [OK]  Reports written  →  building_report.csv / .json")
+    print("  [OK]  Monthly report   →  monthly_report.csv")
+    print("  [OK]  Rule evaluation  →  rule_evaluation.csv")
+    print("  [OK]  Missing sweep    →  missing_sweep.csv")
 
-    # CO6: plots
+    # plots
     plot_overview(meters, os.path.join(OUT, "plot_overview.png"))
+    print("\n  [OK]  plot_overview.png  (campus-wide 7-day trend)")
     for name, m in meters.items():
         t     = truth_df[truth_df.building == name][["leak_start", "leak_end"]].values
         fname = f"plot_{name.replace(' ', '_').lower()}.png"
         plot_building(m, t, os.path.join(OUT, fname))
-        print(f"  saved {fname}")
+        print(f"  [OK]  {fname}")
     plot_missing(sw, os.path.join(OUT, "plot_missing_false_alarms.png"))
+    print("  [OK]  plot_missing_false_alarms.png")
     plot_rule_comparison(ev, os.path.join(OUT, "plot_rule_comparison.png"))
+    print("  [OK]  plot_rule_comparison.png")
 
+    # ── 3. building report ────────────────────────────────────────────────────
+    _banner("3. BUILDING REPORT  (Aggregate Statistics — 120 Days)")
     pd.set_option("display.width", 200)
-    print("\n== BUILDING REPORT ==")
-    print(rep.to_string(index=False))
-    print("\n== MONTHLY TOTAL (kL) ==")
-    print(mon.to_string())
-    print("\n== RULE EVALUATION ==")
-    print(ev.to_string(index=False))
-    print("\n== FALSE-ALARM DAYS vs MISSING % ==")
-    print(sw.to_string(index=False))
-    print("\nDone. All outputs saved to:", OUT)
+
+    # pretty print with aligned columns
+    hdr = (f"  {'Building':<18} {'Days':>5} {'Missing':>7} "
+           f"{'Rollbacks':>9} {'Total kL':>10} {'Mean kL/d':>10} "
+           f"{'Peak kL/d':>10} {'Leak-C':>7} {'Leak-D':>7}")
+    print(f"\n{hdr}")
+    print(f"  {'-'*18}  {'-'*5}  {'-'*6}  {'-'*8}  {'-'*9}  {'-'*9}  {'-'*9}  {'-'*6}  {'-'*6}")
+    for _, row in rep.iterrows():
+        print(f"  {row['building']:<18}  {row['readings']:>5}  {row['missing']:>6}  "
+              f"{row['non_monotonic']:>8}  {row['total_kL']:>9,.1f}  "
+              f"{row['mean_kL_day']:>9.2f}  {row['peak_kL_day']:>9.2f}  "
+              f"{row['leak_days_C']:>6}  {row['leak_days_D']:>6}")
+
+    total_kl = rep["total_kL"].sum()
+    print(f"\n  {'Campus Total':>60}  {total_kl:>9,.1f} kL")
+
+    # ── 4. monthly report ─────────────────────────────────────────────────────
+    _banner("4. MONTHLY CONSUMPTION  (kL per Building)")
+    print()
+    # header row
+    months = list(mon.index)
+    cols   = list(mon.columns)
+    print(f"  {'Month':<10}", end="")
+    for c in cols:
+        print(f"  {c:>14}", end="")
+    print()
+    print(f"  {'-'*10}", end="")
+    for c in cols:
+        print(f"  {'-'*14}", end="")
+    print()
+    for month in months:
+        print(f"  {month:<10}", end="")
+        for c in cols:
+            val = mon.loc[month, c]
+            print(f"  {val:>14,.1f}", end="")
+        print()
+
+    # ── 5. leak detection rule evaluation ─────────────────────────────────────
+    _banner("5. LEAK DETECTION RULE EVALUATION  (Precision / Recall)")
+    print(f"\n  {'Rule':<50} {'TP':>5} {'FP':>5} {'FN':>5}  {'Precision':>10}  {'Recall':>7}")
+    print(f"  {'-'*50}  {'-'*5}  {'-'*5}  {'-'*5}  {'-'*10}  {'-'*7}")
+    for _, row in ev.iterrows():
+        flag = "  <-- BEST" if row["FP_days"] == 0 and row["recall"] == ev["recall"].max() else ""
+        prec = f"{row['precision']:.2f}" if not pd.isna(row['precision']) else " N/A"
+        rec  = f"{row['recall']:.2f}"
+        print(f"  {row['rule']:<50}  {row['TP_days']:>5}  {row['FP_days']:>5}  "
+              f"{row['FN_days']:>5}  {prec:>10}  {rec:>7}{flag}")
+
+    # ── 6. missing data stress test ───────────────────────────────────────────
+    _banner("6. MISSING-DATA STRESS TEST  (False-Alarm Days vs Dropout Rate)")
+    print(f"\n  {'Missing %':>10}  {'Rule A0':>8}  {'Rule A':>8}  {'Rule A\'':>8}  "
+          f"{'Rule B':>8}  {'Rule C':>8}  {'Rule D':>8}")
+    print(f"  {'-'*10}  {'-'*8}  {'-'*8}  {'-'*8}  {'-'*8}  {'-'*8}  {'-'*8}")
+    for _, row in sw.iterrows():
+        print(f"  {int(row['missing_%']):>9}%  {row['A_ffill']:>8.1f}  "
+              f"{row['A_naive']:>8.1f}  {row['A']:>8.1f}  "
+              f"{row['B']:>8.1f}  {row['C']:>8.1f}  {row['D']:>8.1f}")
+
+    # ── footer ────────────────────────────────────────────────────────────────
+    print(f"\n{DIV}")
+    print("  ANALYSIS COMPLETE".center(W))
+    print(f"  All outputs saved to : {OUT}".center(W))
+    print(f"  {len(list(meters.keys()))} buildings  |  {DAYS} days  |  "
+          f"{len(ev)} rules evaluated  |  "
+          f"{len(list(meters.values()))*DAYS:,} total meter-days".center(W))
+    print(DIV + "\n")
